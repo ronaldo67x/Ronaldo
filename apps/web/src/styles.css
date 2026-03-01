@@ -1,0 +1,156 @@
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  line-height: var(--line-height);
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-xl);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.grid.two {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--font-size-xl);
+}
+
+label {
+  display: grid;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+}
+
+button,
+select,
+input[type='color'],
+input[type='checkbox'] {
+  border-radius: var(--radius-sm);
+}
+
+button,
+select {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  padding: var(--space-sm) var(--space-md);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+button.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+button.accent {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.status {
+  font-size: var(--font-size-sm);
+}
+
+.status.pass {
+  color: var(--color-success);
+}
+
+.status.fail {
+  color: var(--color-danger);
+}
+
+.listbox {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.list-option {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-md);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+}
+
+.list-option:last-child {
+  border-bottom: none;
+}
+
+.list-option.active {
+  background: color-mix(in oklab, var(--color-primary) 18%, var(--color-surface));
+}
+
+.token-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-sm);
+}
+
+.token-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.small {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
