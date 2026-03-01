@@ -21,6 +21,35 @@ A TypeScript monorepo template for a quiz platform with a React frontend, Fastif
    npm run dev --workspace @ronaldo/api
    ```
 
+## Fully isolated / portable setup (no local Node install)
+
+If you want to keep your host machine clean, run the project in containers.
+
+### Option 1: Docker Compose (recommended)
+
+Prerequisite: a container runtime (Docker Desktop, Rancher Desktop, Podman Desktop).
+
+1. Start both frontend and API:
+   ```bash
+   docker compose up
+   ```
+2. Open:
+   - Frontend: `http://localhost:5173`
+   - API health: `http://localhost:4000/api/health`
+3. Stop containers:
+   ```bash
+   docker compose down
+   ```
+
+Notes:
+
+- Dependencies are installed inside the containers (`npm install` runs in container startup).
+- Your host only needs the container runtime and the repository files.
+
+### Option 2: Cloud dev environments
+
+If you want zero local installs at all, use a cloud workspace (for example GitHub Codespaces) and run the same npm scripts there.
+
 ## Scripts
 
 ### Root
