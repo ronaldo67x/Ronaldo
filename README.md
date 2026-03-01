@@ -50,6 +50,31 @@ Notes:
 
 If you want zero local installs at all, use a cloud workspace (for example GitHub Codespaces) and run the same npm scripts there.
 
+### Option 3: Bez Dockera i bez instalacji Node (Windows, darmowe)
+
+Jeśli nie chcesz używać Dockera i nadal chcesz mieć "czysty" system, użyj skryptu portable:
+
+1. Uruchom PowerShell w katalogu projektu i wykonaj:
+   ```powershell
+   .\scripts\portable-dev.ps1
+   ```
+2. Skrypt automatycznie:
+   - pobiera portable Node.js ZIP do folderu `.portable/`,
+   - uruchamia `npm install`,
+   - startuje API i frontend.
+3. Otwórz:
+   - Frontend: `http://localhost:5173`
+   - API health: `http://localhost:4000/api/health`
+
+Uwagi:
+
+- Nic nie instaluje się globalnie w Windows (poza tym, że potrzebujesz PowerShell i dostępu do Internetu).
+- Aby usunąć całe środowisko portable, skasuj folder `.portable/` i `node_modules/`.
+- Możesz wybrać inną wersję Node:
+  ```powershell
+  .\scripts\portable-dev.ps1 -NodeVersion 22.14.0
+  ```
+
 ## Scripts
 
 ### Root
