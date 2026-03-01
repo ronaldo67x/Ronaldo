@@ -50,6 +50,10 @@ if (-not $SkipInstall) {
   }
 }
 
+Write-Host "Building @ronaldo/shared so Vite can resolve workspace package entry ..."
+& $npmCmd run build --workspace @ronaldo/shared
+if ($LASTEXITCODE -ne 0) { throw "shared package build failed" }
+
 Write-Host "Starting API on http://localhost:4000 ..."
 $api = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$npmCmd`" run dev --workspace @ronaldo/api" -WorkingDirectory $root -PassThru
 

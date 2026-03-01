@@ -61,6 +61,7 @@ Jeśli nie chcesz używać Dockera i nadal chcesz mieć "czysty" system, użyj s
 2. Skrypt automatycznie:
    - pobiera portable Node.js ZIP do folderu `.portable/`,
    - uruchamia `npm install`,
+   - buduje `@ronaldo/shared` (wymagane przez Vite),
    - startuje API i frontend.
 3. Otwórz:
    - Frontend: `http://localhost:5173`
@@ -78,6 +79,7 @@ Uwagi:
 
 - Jeśli zobaczysz błąd `node is not recognized` podczas `npm install`, uruchom ponownie skrypt — nowa wersja wymusza użycie portable Node przez `PATH` i `npm_config_scripts_prepend_node_path`.
 - Jeśli trafisz na `EPERM` przy usuwaniu `node_modules`, zamknij edytor/terminale używające projektu, usuń `node_modules/` ręcznie i uruchom skrypt ponownie.
+- Jeśli zobaczysz błąd Vite `Failed to resolve entry for package "@ronaldo/shared"`, uruchom skrypt ponownie albo ręcznie: `./.portable/node-v22.14.0-win-x64/npm.cmd run build --workspace @ronaldo/shared`.
 
 ## Scripts
 
