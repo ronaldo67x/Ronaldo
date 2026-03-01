@@ -13,7 +13,11 @@
     "typecheck": "tsc -b",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "vitest run",
+    "test:unit": "vitest run packages/shared/src/scoring.test.ts apps/web/src/runtime/timers.test.ts",
+    "test:integration": "vitest run apps/api/src/flow.integration.test.ts",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
@@ -28,7 +32,9 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8",
+    "@playwright/test": "^1.51.0"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,md,yml,yaml}": [

@@ -2,13 +2,24 @@ import { z } from 'zod';
 
 export const QUIZ_CATEGORIES = ['history', 'science', 'sports', 'geography'] as const;
 
-export const questionSchema = z.object({
+const objectiveQuestionSchema = z.object({
   id: z.string().uuid(),
+  type: z.literal('objective').default('objective'),
   category: z.enum(QUIZ_CATEGORIES),
   prompt: z.string().min(10),
   choices: z.array(z.string().min(1)).min(2).max(6),
   answerIndex: z.number().int().nonnegative(),
 });
+
+const openEndedQuestionSchema = z.object({
+  id: z.string().uuid(),
+  type: z.literal('open-ended'),
+  category: z.enum(QUIZ_CATEGORIES),
+  prompt: z.string().min(10),
+  maxLength: z.number().int().positive().default(5000),
+});
+
+export const questionSchema = z.union([objectiveQuestionSchema, openEndedQuestionSchema]);
 
 export const quizSchema = z.object({
   id: z.string().uuid(),
@@ -44,11 +55,18 @@ export const attemptAnswerChangeSchema = z.object({
   clientTimestamp: z.string().datetime().optional(),
 });
 
+export const attemptOpenResponseSchema = z.object({
+  questionId: z.string().uuid(),
+  richText: z.string().min(1),
+  clientTimestamp: z.string().datetime().optional(),
+});
+
 export const attemptEventTypeSchema = z.enum([
   'attempt_started',
   'attempt_paused',
   'attempt_submitted',
   'answer_changed',
+  'open_response_changed',
   'focus_lost',
   'focus_restored',
   'copy_blocked',
@@ -73,7 +91,22 @@ export type AntiCheatPolicy = z.infer<typeof antiCheatPolicySchema>;
 export type AttemptTimingMode = z.infer<typeof attemptTimingModeSchema>;
 export type AttemptStartRequest = z.infer<typeof attemptStartRequestSchema>;
 export type AttemptAnswerChange = z.infer<typeof attemptAnswerChangeSchema>;
+export type AttemptOpenResponse = z.infer<typeof attemptOpenResponseSchema>;
 export type AttemptEventType = z.infer<typeof attemptEventTypeSchema>;
 export type AttemptEvent = z.infer<typeof attemptEventSchema>;
+
+export type AttemptObjectiveAnswers = Record<string, number>;
+
+export const scoreAttempt = (quiz: Quiz, answers: AttemptObjectiveAnswers) => {
+  const objectiveQuestions = quiz.questions.filter((question) => question.type === 'objective');
+  const total = objectiveQuestions.length;
+  const correct = objectiveQuestions.reduce((count, question) => {
+    const submitted = answers[question.id];
+    return count + (submitted === question.answerIndex ? 1 : 0);
+  }, 0);
+  const percent = total === 0 ? 0 : (correct / total) * 100;
+
+  return { total, correct, percent };
+};
 
 export const API_BASE_PATH = '/api/v1';
