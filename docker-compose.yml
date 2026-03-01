@@ -1,0 +1,25 @@
+services:
+  web:
+    image: node:22-alpine
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - ronaldo_node_modules:/workspace/node_modules
+    command: sh -lc "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - '5173:5173'
+    depends_on:
+      - api
+
+  api:
+    image: node:22-alpine
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - ronaldo_node_modules:/workspace/node_modules
+    command: sh -lc "npm install && npm run dev --workspace @ronaldo/api"
+    ports:
+      - '4000:4000'
+
+volumes:
+  ronaldo_node_modules:
