@@ -35,7 +35,10 @@ Prerequisite: a container runtime (Docker Desktop, Rancher Desktop, Podman Deskt
    ```
 2. Open:
    - Frontend: `http://localhost:5173`
-   - API health: `http://localhost:4000/api/health`
+   - API health: `http://localhost:4000/api/v1/health`
+
+   > Uwaga: API używa prefiksu `/api/v1`.
+
 3. Stop containers:
    ```bash
    docker compose down
@@ -65,6 +68,12 @@ Jeśli nie chcesz używać Dockera i nadal chcesz mieć "czysty" system, użyj s
    - startuje API i frontend.
 3. Otwórz:
    - Frontend: `http://localhost:5173`
+   - API health: `http://localhost:4000/api/v1/health`
+
+Uwagi:
+
+- API używa prefiksu `/api/v1` (np. `/api/v1/health`).
+
    - API health: `http://localhost:4000/api/health`
 
 Uwagi:
