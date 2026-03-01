@@ -13,6 +13,10 @@ $npmCmd = Join-Path $nodeDir "npm.cmd"
 
 New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
+# Ensure portable Node is used by npm and all postinstall scripts (e.g. esbuild).
+$env:PATH = "$nodeDir;" + $env:PATH
+$env:npm_config_scripts_prepend_node_path = "true"
+
 if (-not (Test-Path $nodeExe)) {
   $zipName = "node-v{0}-win-x64.zip" -f $NodeVersion
   $zipPath = Join-Path $portableRoot $zipName
@@ -31,8 +35,19 @@ if (-not (Test-Path $npmCmd)) {
 
 if (-not $SkipInstall) {
   Write-Host "Installing dependencies in project (portable Node/npm) ..."
-  & $npmCmd install
-  if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+  try {
+    & $npmCmd install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+  }
+  catch {
+    Write-Host "First npm install failed. Cleaning node_modules and retrying once ..."
+    $nodeModules = Join-Path $root "node_modules"
+    if (Test-Path $nodeModules) {
+      Remove-Item -Recurse -Force $nodeModules -ErrorAction SilentlyContinue
+    }
+    & $npmCmd install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed after retry" }
+  }
 }
 
 Write-Host "Starting API on http://localhost:4000 ..."

@@ -71,9 +71,13 @@ Uwagi:
 - Nic nie instaluje się globalnie w Windows (poza tym, że potrzebujesz PowerShell i dostępu do Internetu).
 - Aby usunąć całe środowisko portable, skasuj folder `.portable/` i `node_modules/`.
 - Możesz wybrać inną wersję Node:
+
   ```powershell
   .\scripts\portable-dev.ps1 -NodeVersion 22.14.0
   ```
+
+- Jeśli zobaczysz błąd `node is not recognized` podczas `npm install`, uruchom ponownie skrypt — nowa wersja wymusza użycie portable Node przez `PATH` i `npm_config_scripts_prepend_node_path`.
+- Jeśli trafisz na `EPERM` przy usuwaniu `node_modules`, zamknij edytor/terminale używające projektu, usuń `node_modules/` ręcznie i uruchom skrypt ponownie.
 
 ## Scripts
 
