@@ -74,6 +74,10 @@ Uwagi:
 
 - API używa prefiksu `/api/v1` (np. `/api/v1/health`).
 
+   - API health: `http://localhost:4000/api/health`
+
+Uwagi:
+
 - Nic nie instaluje się globalnie w Windows (poza tym, że potrzebujesz PowerShell i dostępu do Internetu).
 - Aby usunąć całe środowisko portable, skasuj folder `.portable/` i `node_modules/`.
 - Możesz wybrać inną wersję Node:
