@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { API_BASE_PATH, QUIZ_CATEGORIES } from '@ronaldo/shared';
+import { attachAntiCheatGuards } from './runtime/antiCheat';
+import { progressAnimationStyle } from './runtime/motion';
+import {
+  autosaveAnswer,
+  readSessionLocally,
+  restoreSession,
+  saveSessionLocally,
+} from './runtime/session';
+import { createTimerState, formatClock, type TimerMode } from './runtime/timers';
 import {
   getContrastRatio,
   Mode,
@@ -30,6 +39,15 @@ const questionSteps = [
 ];
 
 const runtimeChoices = ['Choice A', 'Choice B', 'Choice C', 'Choice D'];
+
+const runtimeQuestionIds = [
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '33333333-3333-4333-8333-333333333333',
+  '44444444-4444-4444-8444-444444444444',
+];
+const globalTimerLimitMs = 5 * 60 * 1000;
+const perQuestionLimitMs = 45 * 1000;
 
 const defaultPreferences: Preferences = {
   mode: 'light',
@@ -74,8 +92,13 @@ const App = () => {
   const [builderIndex, setBuilderIndex] = useState(0);
   const [runtimeIndex, setRuntimeIndex] = useState(0);
   const [runtimeSelection, setRuntimeSelection] = useState(runtimeChoices[0]);
+  const [timerMode, setTimerMode] = useState<TimerMode>('global');
+  const [attemptId, setAttemptId] = useState('local-demo-attempt');
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [violationMessage, setViolationMessage] = useState('No violations detected');
 
   const builderRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const proctoringZoneRef = useRef<HTMLDivElement | null>(null);
   const runtimeRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const activePalette = useMemo(
@@ -138,6 +161,43 @@ const App = () => {
     void syncProfile();
   }, [preferences]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setElapsedMs((current) => current + 1000);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const storedSession = readSessionLocally();
+    if (!storedSession) {
+      return;
+    }
+
+    setAttemptId(storedSession.attemptId);
+    void restoreSession(storedSession.attemptId).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!proctoringZoneRef.current) {
+      return;
+    }
+
+    return attachAntiCheatGuards(
+      attemptId,
+      {
+        blockCopy: true,
+        blockPaste: true,
+        maxFocusLossEvents: 3,
+      },
+      proctoringZoneRef.current,
+      setViolationMessage,
+    );
+  }, [attemptId]);
+
   const updatePreferences = (patch: Partial<Preferences>) => {
     setPreferences((current) => ({ ...current, ...patch }));
   };
@@ -174,6 +234,19 @@ const App = () => {
       event.preventDefault();
       setRuntimeSelection(runtimeChoices[index]);
     }
+  };
+
+  const activeLimitMs = timerMode === 'global' ? globalTimerLimitMs : perQuestionLimitMs;
+  const timerState = createTimerState(timerMode, elapsedMs, activeLimitMs);
+
+  const onRuntimeAnswerSelection = (questionId: string, choice: string, index: number) => {
+    setRuntimeSelection(choice);
+    void autosaveAnswer(attemptId, questionId, index).catch(() => undefined);
+    saveSessionLocally({
+      attemptId,
+      answers: { [questionId]: index },
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   return (
@@ -334,7 +407,7 @@ const App = () => {
                 onKeyDown={(event) => onRuntimeKeyDown(event, index)}
                 onClick={() => {
                   setRuntimeIndex(index);
-                  setRuntimeSelection(choice);
+                  onRuntimeAnswerSelection(runtimeQuestionIds[index]!, choice, index);
                 }}
               >
                 {choice}
@@ -342,6 +415,43 @@ const App = () => {
             ))}
           </div>
           <p className="small">Current answer: {runtimeSelection}</p>
+        </div>
+      </section>
+
+      <section
+        className="panel grid"
+        aria-label="Runtime controls for timer, autosave, and anti-cheat"
+      >
+        <h2>Quiz runtime modules</h2>
+        <div className="grid two">
+          <div className="grid">
+            <label>
+              Timer mode
+              <select
+                value={timerMode}
+                onChange={(event) => setTimerMode(event.target.value as TimerMode)}
+              >
+                <option value="global">Global quiz timer</option>
+                <option value="per-question">Per-question timer</option>
+              </select>
+            </label>
+            <div className="timer-track" aria-label="Runtime timer progress">
+              <div className="timer-fill" style={progressAnimationStyle(timerState.progress)} />
+            </div>
+            <p className="small">
+              {timerMode === 'global' ? 'Global' : 'Per-question'} time remaining:{' '}
+              {formatClock(timerState.remainingMs)}
+            </p>
+          </div>
+
+          <div className="grid" ref={proctoringZoneRef}>
+            <h3>Proctoring / anti-cheat</h3>
+            <p className="small">
+              Tab switching, blur, copy, and paste are logged to attempt events.
+            </p>
+            <p className="small">Latest policy signal: {violationMessage}</p>
+            <p className="small">Autosave + reconnect session id: {attemptId}</p>
+          </div>
         </div>
       </section>
 
