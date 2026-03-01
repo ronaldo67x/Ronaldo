@@ -1,0 +1,12 @@
+{
+  "name": "ronaldo-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}
