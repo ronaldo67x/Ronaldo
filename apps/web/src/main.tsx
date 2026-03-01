@@ -96,6 +96,17 @@ const App = () => {
   const [attemptId, setAttemptId] = useState('local-demo-attempt');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [violationMessage, setViolationMessage] = useState('No violations detected');
+  const [instructorQuizId, setInstructorQuizId] = useState('');
+  const [instructorMetrics, setInstructorMetrics] = useState<null | {
+    attemptCount: number;
+    completionRate: number;
+    timingDistributionMs: number[];
+    perQuestion: Array<{
+      questionId: string;
+      heuristicDifficulty: number;
+      heuristicDiscrimination: number;
+    }>;
+  }>(null);
 
   const builderRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const proctoringZoneRef = useRef<HTMLDivElement | null>(null);
@@ -197,6 +208,26 @@ const App = () => {
       setViolationMessage,
     );
   }, [attemptId]);
+
+  useEffect(() => {
+    if (!instructorQuizId) {
+      return;
+    }
+
+    const loadMetrics = async () => {
+      const response = await fetch(
+        `${API_BASE_PATH}/quizzes/${instructorQuizId}/instructor/metrics`,
+      );
+      if (!response.ok) {
+        setInstructorMetrics(null);
+        return;
+      }
+      const payload = (await response.json()) as { data: NonNullable<typeof instructorMetrics> };
+      setInstructorMetrics(payload.data);
+    };
+
+    void loadMetrics();
+  }, [instructorQuizId]);
 
   const updatePreferences = (patch: Partial<Preferences>) => {
     setPreferences((current) => ({ ...current, ...patch }));
@@ -453,6 +484,47 @@ const App = () => {
             <p className="small">Autosave + reconnect session id: {attemptId}</p>
           </div>
         </div>
+      </section>
+
+      <section className="panel grid" aria-label="Instructor dashboard">
+        <h2>Instructor dashboard</h2>
+        <label>
+          Quiz ID
+          <input
+            aria-label="Instructor quiz id"
+            value={instructorQuizId}
+            onChange={(event) => setInstructorQuizId(event.target.value)}
+            placeholder="Enter quiz id"
+          />
+        </label>
+        {!instructorMetrics ? (
+          <p className="small">
+            Provide a quiz id to load completion, timing, and question heuristics.
+          </p>
+        ) : (
+          <div className="grid two">
+            <div className="grid">
+              <p className="small">Attempts: {instructorMetrics.attemptCount}</p>
+              <p className="small">
+                Completion rate: {(instructorMetrics.completionRate * 100).toFixed(1)}%
+              </p>
+              <p className="small">
+                Timing distribution samples: {instructorMetrics.timingDistributionMs.length}
+              </p>
+            </div>
+            <div className="grid">
+              {instructorMetrics.perQuestion.map((question) => (
+                <div key={question.questionId} className="status pass">
+                  <div className="small">Question: {question.questionId}</div>
+                  <div className="small">Difficulty heuristic: {question.heuristicDifficulty}</div>
+                  <div className="small">
+                    Discrimination heuristic: {question.heuristicDiscrimination}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="panel grid" aria-label="Shared package info">
