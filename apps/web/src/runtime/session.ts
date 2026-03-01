@@ -1,4 +1,4 @@
-import { API_BASE_PATH } from '@ronaldo/shared';
+import { toApiUrl } from './api';
 
 export type RuntimeSessionState = {
   attemptId: string;
@@ -30,7 +30,7 @@ export const autosaveAnswer = async (
   questionId: string,
   selectedOptionIndex: number,
 ) => {
-  await fetch(`${API_BASE_PATH}/attempts/${attemptId}/answers`, {
+  await fetch(toApiUrl(`/attempts/${attemptId}/answers`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -42,7 +42,7 @@ export const autosaveAnswer = async (
 };
 
 export const restoreSession = async (attemptId: string) => {
-  const response = await fetch(`${API_BASE_PATH}/attempts/${attemptId}`);
+  const response = await fetch(toApiUrl(`/attempts/${attemptId}`));
   if (!response.ok) {
     throw new Error(`Unable to restore session (${response.status})`);
   }

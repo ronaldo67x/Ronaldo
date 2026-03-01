@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { API_BASE_PATH, QUIZ_CATEGORIES } from '@ronaldo/shared';
+import { QUIZ_CATEGORIES, scoreAttempt, type Quiz } from '@ronaldo/shared';
 import { attachAntiCheatGuards } from './runtime/antiCheat';
+import { toApiUrl } from './runtime/api';
 import { progressAnimationStyle } from './runtime/motion';
 import {
   autosaveAnswer,
@@ -28,6 +29,12 @@ type Preferences = {
   syncProfile: boolean;
 };
 
+type AttemptBootstrap = {
+  attemptId: string;
+  questionOrder: string[];
+  optionOrderByQuestion: Record<string, number[]>;
+};
+
 const STORAGE_KEY = 'ronaldo.theme.preferences.v1';
 
 const questionSteps = [
@@ -38,14 +45,6 @@ const questionSteps = [
   'Review behavior',
 ];
 
-const runtimeChoices = ['Choice A', 'Choice B', 'Choice C', 'Choice D'];
-
-const runtimeQuestionIds = [
-  '11111111-1111-4111-8111-111111111111',
-  '22222222-2222-4222-8222-222222222222',
-  '33333333-3333-4333-8333-333333333333',
-  '44444444-4444-4444-8444-444444444444',
-];
 const globalTimerLimitMs = 5 * 60 * 1000;
 const perQuestionLimitMs = 45 * 1000;
 
@@ -86,17 +85,57 @@ const applyTheme = (preferences: Preferences) => {
   document.documentElement.dataset.theme = preferences.mode;
 };
 
+const demoQuizPayload = {
+  title: 'Demo quiz: podstawy fizyki',
+  difficulty: 'easy' as const,
+  questions: [
+    {
+      id: crypto.randomUUID(),
+      type: 'objective' as const,
+      category: 'science' as const,
+      prompt: 'Która jednostka SI opisuje siłę?',
+      choices: ['Wat', 'Newton', 'Dżul', 'Wolt'],
+      answerIndex: 1,
+    },
+    {
+      id: crypto.randomUUID(),
+      type: 'objective' as const,
+      category: 'science' as const,
+      prompt: 'Jaka jest przybliżona wartość przyspieszenia ziemskiego?',
+      choices: ['9.81 m/s²', '1.62 m/s²', '24.79 m/s²', '3.71 m/s²'],
+      answerIndex: 0,
+    },
+    {
+      id: crypto.randomUUID(),
+      type: 'objective' as const,
+      category: 'science' as const,
+      prompt: 'Która wielkość opisuje opór elektryczny?',
+      choices: ['Amper (A)', 'Om (Ω)', 'Tesla (T)', 'Farad (F)'],
+      answerIndex: 1,
+    },
+  ],
+};
+
 const App = () => {
   const [preferences, setPreferences] = useState<Preferences>(readStoredPreferences);
   const [syncStatus, setSyncStatus] = useState('Sync disabled');
   const [builderIndex, setBuilderIndex] = useState(0);
   const [runtimeIndex, setRuntimeIndex] = useState(0);
-  const [runtimeSelection, setRuntimeSelection] = useState(runtimeChoices[0]);
+  const [runtimeQuestionIndex, setRuntimeQuestionIndex] = useState(0);
   const [timerMode, setTimerMode] = useState<TimerMode>('global');
   const [attemptId, setAttemptId] = useState('local-demo-attempt');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [violationMessage, setViolationMessage] = useState('No violations detected');
   const [instructorQuizId, setInstructorQuizId] = useState('');
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [attemptBootstrap, setAttemptBootstrap] = useState<AttemptBootstrap | null>(null);
+  const [runtimeAnswers, setRuntimeAnswers] = useState<Record<string, number>>({});
+  const [runtimeStatus, setRuntimeStatus] = useState('Ładowanie demo quizu...');
+  const [submittedScore, setSubmittedScore] = useState<null | {
+    total: number;
+    correct: number;
+    percent: number;
+  }>(null);
   const [instructorMetrics, setInstructorMetrics] = useState<null | {
     attemptCount: number;
     completionRate: number;
@@ -139,6 +178,34 @@ const App = () => {
     ];
   }, [activePalette]);
 
+  const orderedQuestions = useMemo(() => {
+    if (!quiz || !attemptBootstrap) {
+      return [];
+    }
+    return attemptBootstrap.questionOrder
+      .map((id) => quiz.questions.find((question) => question.id === id))
+      .filter((question): question is NonNullable<typeof question> => Boolean(question));
+  }, [quiz, attemptBootstrap]);
+
+  const activeQuestion = orderedQuestions[runtimeQuestionIndex];
+  const runtimeOptions = useMemo(() => {
+    if (!activeQuestion || activeQuestion.type !== 'objective' || !attemptBootstrap) {
+      return [] as Array<{ label: string; originalIndex: number }>;
+    }
+
+    const optionOrder = attemptBootstrap.optionOrderByQuestion[activeQuestion.id];
+    if (!optionOrder) {
+      return activeQuestion.choices.map((label, originalIndex) => ({ label, originalIndex }));
+    }
+
+    return optionOrder.map((originalIndex) => ({
+      label: activeQuestion.choices[originalIndex] ?? '—',
+      originalIndex,
+    }));
+  }, [activeQuestion, attemptBootstrap]);
+
+  const answeredCount = useMemo(() => Object.keys(runtimeAnswers).length, [runtimeAnswers]);
+
   useEffect(() => {
     applyTheme(preferences);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
@@ -153,7 +220,7 @@ const App = () => {
     const syncProfile = async () => {
       try {
         setSyncStatus('Syncing theme profile...');
-        const response = await fetch(`${API_BASE_PATH}/profile/theme`, {
+        const response = await fetch(toApiUrl(`/profile/theme`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(preferences),
@@ -189,7 +256,84 @@ const App = () => {
     }
 
     setAttemptId(storedSession.attemptId);
+    setRuntimeAnswers(storedSession.answers);
     void restoreSession(storedSession.attemptId).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const bootstrapRuntime = async () => {
+      try {
+        setRuntimeStatus('Tworzę/odnajduję demo quiz...');
+        const quizzesResponse = await fetch(toApiUrl(`/quizzes`));
+        if (!quizzesResponse.ok) {
+          throw new Error(`Quiz list fetch failed (${quizzesResponse.status})`);
+        }
+        const quizzesPayload = (await quizzesResponse.json()) as { data: Quiz[] };
+        let selectedQuiz = quizzesPayload.data.find(
+          (entry) => entry.title === demoQuizPayload.title,
+        );
+
+        if (!selectedQuiz) {
+          const createResponse = await fetch(toApiUrl(`/quizzes`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(demoQuizPayload),
+          });
+          if (!createResponse.ok) {
+            throw new Error(`Quiz create failed (${createResponse.status})`);
+          }
+          const createdPayload = (await createResponse.json()) as { data: Quiz };
+          selectedQuiz = createdPayload.data;
+        }
+
+        setQuiz(selectedQuiz);
+        setInstructorQuizId(selectedQuiz.id);
+
+        const startResponse = await fetch(toApiUrl(`/attempts/start`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quizId: selectedQuiz.id,
+            participantId: `demo-${crypto.randomUUID().slice(0, 8)}`,
+            timingMode: 'global',
+            globalTimeLimitMs: globalTimerLimitMs,
+            antiCheatPolicy: {
+              blockCopy: true,
+              blockPaste: true,
+              maxFocusLossEvents: 3,
+            },
+            randomizeQuestionOrder: true,
+            randomizeOptionOrder: true,
+          }),
+        });
+
+        if (!startResponse.ok) {
+          throw new Error(`Attempt start failed (${startResponse.status})`);
+        }
+
+        const startPayload = (await startResponse.json()) as {
+          data: {
+            attemptId: string;
+            questionOrder: string[];
+            optionOrderByQuestion: Record<string, number[]>;
+          };
+        };
+
+        setAttemptBootstrap(startPayload.data);
+        setAttemptId(startPayload.data.attemptId);
+        setRuntimeAnswers({});
+        saveSessionLocally({
+          attemptId: startPayload.data.attemptId,
+          answers: {},
+          updatedAt: new Date().toISOString(),
+        });
+        setRuntimeStatus('Demo działa: zaznacz odpowiedzi i kliknij "Zatwierdź próbę".');
+      } catch (error) {
+        setRuntimeStatus(`Nie udało się uruchomić demo: ${(error as Error).message}`);
+      }
+    };
+
+    void bootstrapRuntime();
   }, []);
 
   useEffect(() => {
@@ -215,9 +359,7 @@ const App = () => {
     }
 
     const loadMetrics = async () => {
-      const response = await fetch(
-        `${API_BASE_PATH}/quizzes/${instructorQuizId}/instructor/metrics`,
-      );
+      const response = await fetch(toApiUrl(`/quizzes/${instructorQuizId}/instructor/metrics`));
       if (!response.ok) {
         setInstructorMetrics(null);
         return;
@@ -227,7 +369,7 @@ const App = () => {
     };
 
     void loadMetrics();
-  }, [instructorQuizId]);
+  }, [instructorQuizId, submittedScore]);
 
   const updatePreferences = (patch: Partial<Preferences>) => {
     setPreferences((current) => ({ ...current, ...patch }));
@@ -251,33 +393,70 @@ const App = () => {
   const onRuntimeKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      const next = (index + 1) % runtimeChoices.length;
+      const next = (index + 1) % runtimeOptions.length;
       setRuntimeIndex(next);
       runtimeRefs.current[next]?.focus();
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      const next = (index - 1 + runtimeChoices.length) % runtimeChoices.length;
+      const next = (index - 1 + runtimeOptions.length) % runtimeOptions.length;
       setRuntimeIndex(next);
       runtimeRefs.current[next]?.focus();
     }
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      setRuntimeSelection(runtimeChoices[index]);
+      const option = runtimeOptions[index];
+      if (!option || !activeQuestion) {
+        return;
+      }
+      void onRuntimeAnswerSelection(activeQuestion.id, option.originalIndex);
     }
   };
 
   const activeLimitMs = timerMode === 'global' ? globalTimerLimitMs : perQuestionLimitMs;
   const timerState = createTimerState(timerMode, elapsedMs, activeLimitMs);
 
-  const onRuntimeAnswerSelection = (questionId: string, choice: string, index: number) => {
-    setRuntimeSelection(choice);
-    void autosaveAnswer(attemptId, questionId, index).catch(() => undefined);
-    saveSessionLocally({
-      attemptId,
-      answers: { [questionId]: index },
-      updatedAt: new Date().toISOString(),
+  const onRuntimeAnswerSelection = async (questionId: string, originalIndex: number) => {
+    setRuntimeAnswers((current) => {
+      const next = { ...current, [questionId]: originalIndex };
+      saveSessionLocally({
+        attemptId,
+        answers: next,
+        updatedAt: new Date().toISOString(),
+      });
+      return next;
     });
+
+    try {
+      await autosaveAnswer(attemptId, questionId, originalIndex);
+    } catch {
+      // offline mode: keep local autosave
+    }
+  };
+
+  const submitAttempt = async () => {
+    if (!attemptId || !quiz) {
+      return;
+    }
+
+    try {
+      const response = await fetch(toApiUrl(`/attempts/${attemptId}/submit`), {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error(`Submit failed (${response.status})`);
+      }
+      const payload = (await response.json()) as {
+        data: {
+          answers: Record<string, number>;
+        };
+      };
+      const result = scoreAttempt(quiz, payload.data.answers ?? runtimeAnswers);
+      setSubmittedScore(result);
+      setRuntimeStatus('Próba zatwierdzona. Wynik obliczony.');
+    } catch (error) {
+      setRuntimeStatus(`Nie udało się zatwierdzić próby: ${(error as Error).message}`);
+    }
   };
 
   return (
@@ -419,33 +598,80 @@ const App = () => {
         </div>
 
         <div className="grid">
-          <h2>Quiz runtime keyboard navigation</h2>
-          <p className="small">Use Arrow keys to move. Press Space/Enter to choose an answer.</p>
-          <div className="listbox" role="radiogroup" aria-label="Quiz answer options">
-            {runtimeChoices.map((choice, index) => (
-              <button
-                key={choice}
-                ref={(element) => {
-                  runtimeRefs.current[index] = element;
-                }}
-                type="button"
-                role="radio"
-                aria-label={`Select ${choice}`}
-                aria-checked={runtimeSelection === choice}
-                className={`list-option ${runtimeSelection === choice ? 'active' : ''}`}
-                tabIndex={runtimeIndex === index ? 0 : -1}
-                onFocus={() => setRuntimeIndex(index)}
-                onKeyDown={(event) => onRuntimeKeyDown(event, index)}
-                onClick={() => {
-                  setRuntimeIndex(index);
-                  onRuntimeAnswerSelection(runtimeQuestionIds[index]!, choice, index);
-                }}
-              >
-                {choice}
-              </button>
-            ))}
-          </div>
-          <p className="small">Current answer: {runtimeSelection}</p>
+          <h2>Quiz runtime (real API-backed attempt)</h2>
+          <p className="small">{runtimeStatus}</p>
+          {activeQuestion?.type === 'objective' ? (
+            <>
+              <p>
+                <strong>
+                  Pytanie {runtimeQuestionIndex + 1}/{orderedQuestions.length}
+                </strong>{' '}
+                — {activeQuestion.prompt}
+              </p>
+              <div className="listbox" role="radiogroup" aria-label="Quiz answer options">
+                {runtimeOptions.map((option, index) => {
+                  const selectedOriginal = runtimeAnswers[activeQuestion.id];
+                  const selected = selectedOriginal === option.originalIndex;
+                  return (
+                    <button
+                      key={`${activeQuestion.id}-${option.originalIndex}`}
+                      ref={(element) => {
+                        runtimeRefs.current[index] = element;
+                      }}
+                      type="button"
+                      role="radio"
+                      aria-label={`Select option ${option.label}`}
+                      aria-checked={selected}
+                      className={`list-option ${selected ? 'active' : ''}`}
+                      tabIndex={runtimeIndex === index ? 0 : -1}
+                      onFocus={() => setRuntimeIndex(index)}
+                      onKeyDown={(event) => onRuntimeKeyDown(event, index)}
+                      onClick={() => {
+                        setRuntimeIndex(index);
+                        void onRuntimeAnswerSelection(activeQuestion.id, option.originalIndex);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid two">
+                <button
+                  type="button"
+                  disabled={runtimeQuestionIndex === 0}
+                  onClick={() => setRuntimeQuestionIndex((current) => Math.max(0, current - 1))}
+                >
+                  Poprzednie pytanie
+                </button>
+                <button
+                  type="button"
+                  disabled={runtimeQuestionIndex === orderedQuestions.length - 1}
+                  onClick={() =>
+                    setRuntimeQuestionIndex((current) =>
+                      Math.min(orderedQuestions.length - 1, current + 1),
+                    )
+                  }
+                >
+                  Następne pytanie
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="small">Brak aktywnego pytania. Poczekaj na inicjalizację próby.</p>
+          )}
+          <p className="small">
+            Answered: {answeredCount}/{orderedQuestions.length}
+          </p>
+          <button type="button" onClick={() => void submitAttempt()}>
+            Zatwierdź próbę i policz wynik
+          </button>
+          {submittedScore ? (
+            <div className="status pass">
+              Wynik: {submittedScore.correct}/{submittedScore.total} (
+              {submittedScore.percent.toFixed(1)}%)
+            </div>
+          ) : null}
         </div>
       </section>
 

@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import {
   API_BASE_PATH,
@@ -53,6 +54,10 @@ const csvEscape = (value: string | number) => `"${String(value).replaceAll('"', 
 
 export const createApp = () => {
   const app = Fastify({ logger: true });
+
+  void app.register(cors, {
+    origin: true,
+  });
 
   const quizzes: Quiz[] = [];
   const attempts = new Map<string, AttemptSession>();

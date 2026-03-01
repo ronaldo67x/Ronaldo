@@ -1,4 +1,4 @@
-import { API_BASE_PATH } from '@ronaldo/shared';
+import { toApiUrl } from './api';
 
 export type AntiCheatPolicy = {
   blockCopy: boolean;
@@ -11,7 +11,7 @@ const postEvent = async (
   type: 'focus_lost' | 'focus_restored' | 'copy_blocked' | 'paste_blocked',
   payload?: Record<string, unknown>,
 ) => {
-  await fetch(`${API_BASE_PATH}/attempts/${attemptId}/events`, {
+  await fetch(toApiUrl(`/attempts/${attemptId}/events`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, payload }),

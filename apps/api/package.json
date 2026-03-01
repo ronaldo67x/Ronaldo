@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "@ronaldo/shared": "file:../../packages/shared",
     "fastify": "^5.2.1"
   },
